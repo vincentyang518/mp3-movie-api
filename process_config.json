@@ -1,0 +1,11 @@
+{
+  "validation": {
+    "required_columns": ["title", "release_year", "rating", "genre"],
+    "numeric_columns": ["release_year", "rating"]
+  },
+  "processing": {
+    "remove_duplicates": true,
+    "missing": {"enabled": true, "axis": "rows"},
+    "outliers": {"enabled": true, "columns": ["rating"], "method": "iqr", "threshold": 1.5}
+  }
+}

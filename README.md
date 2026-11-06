@@ -53,16 +53,18 @@ python -m pytest -q
 
 依赖文件使用与本次测试兼容的直接依赖范围，避免照搬原 MP2 中与本项目无关的完整环境锁定列表。
 
-## GitHub 提交
+## GitHub 仓库
 
-代码已在本地准备好；尚未创建或推送 GitHub 仓库。需要在自己的 GitHub 新建空仓库后，从本项目根目录执行（把 `YOUR_REPOSITORY_URL` 换成实际地址）：
+项目已发布到独立的私有仓库：
+
+https://github.com/vincentyang518/mp3-movie-api
+
+默认分支为 `main`。数据库、虚拟环境和缓存由 `.gitignore` 排除。后续修改可从本项目根目录提交并推送：
 
 ```bash
-git init -b main
 git add .
-git commit -m "Add SQLite movie storage and SQL queries"
-git remote add origin YOUR_REPOSITORY_URL
-git push -u origin main
+git commit -m "Describe your changes"
+git push origin main
 ```
 
-`.gitignore` 已排除数据库、虚拟环境和缓存。ZIP 也不包含这些生成文件；首次运行会自动建立数据库。
+私有仓库需要授予教师或助教访问权限后，他们才能查看代码。

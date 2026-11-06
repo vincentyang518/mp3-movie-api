@@ -12,7 +12,7 @@
 
 Test environment: Python 3.9, FastAPI 0.128.8, pandas 2.3.3, pytest 8.4.2.
 
-The MP3 working folder contains a generated demo database with the original 20 sample rows. The ZIP excludes the generated database, virtual environments and caches. GitHub repository creation/push has not been performed.
+The MP3 working folder contains a generated demo database with the original 20 sample rows. The ZIP excludes the generated database, virtual environments and caches. The project has been published to https://github.com/vincentyang518/mp3-movie-api (private, main branch).
 
 ## Second review against Part 1
 
@@ -39,6 +39,6 @@ The MP3 working folder contains a generated demo database with the original 20 s
 | Second upload replaces rather than appends | PASS; 20 rows remain |
 | Persistence through actual Uvicorn stop and restart | PASS |
 | Unsupported upload returns 400, /health remains available | PASS |
-| New GitHub repository, git commit and git push | NOT DONE; local code is ready but this submission step remains |
+| New GitHub repository, git commit and git push | PASS; independent private repository created and code pushed to main |
 
 No application-code defects were found during the second review. Six additional test cases were added for default MP2 processing, configuration failures, actual schema, required logs and OpenAPI. The ZIP was regenerated from the reviewed source.

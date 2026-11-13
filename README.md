@@ -1,70 +1,87 @@
-# MP3 Part 1 — Movie API
+# MP3 Movie API - Parts 1 and 2
 
-这是独立的 MP3 项目。原 MP2 文件未修改。基于本机 `mp2-rest-api` 项目复制了原来的 `data_pipeline`、`ProcessConfig`、日志工具及请求中间件，改用 SQLite 存储。
+This FastAPI application uploads, stores, searches, and cleans a collection of movies. The `main.py` module defines the HTTP endpoints, while `src/models.py` defines the request and response models. Uploaded CSV files must contain exactly `title`, `release_year`, `rating`, and `genre`, and each successful upload replaces the current collection. The `src/database.py` and `src/storage.py` modules persist movies in SQLite and use SQL for retrieval, filtering, sorting, and counting, so data survives server restarts. The `data_pipeline` modules validate numeric fields and apply configurable duplicate removal, missing-value handling, and outlier removal before saving the processed collection. The `src/cache.py` module uses a dedicated FakeRedis instance to cache each complete `GET /movies` response by its limit for 90 seconds, while `GET /movies/search` always queries SQLite. Successful uploads and processing invalidate every cached limit immediately after saving, failed writes preserve the cache, and tests verify persistence, invalidation, and database-free cache hits.
 
-## 启动（macOS / VS Code 终端）
+## Install and run
 
-本机已经创建并验证了本项目独立的 `venv/`，可直接执行 `source venv/bin/activate`。若使用解压后的 ZIP，则先创建环境。
-
-在本项目文件夹打开终端，执行：
+Use Python 3.12 (the verified version) and run these commands from the repository root:
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 python -m pip install -r requirements.txt
-python -m uvicorn main:app --reload --port 8003
+python -m uvicorn main:app --reload
 ```
 
-浏览器打开 http://127.0.0.1:8003/docs 。使用 8003 端口方便与 MP2 分开运行。
-每次都从 MP3 项目根目录启动，数据库会自动生成在 `data/movies.db`。
+Open http://127.0.0.1:8000/docs for Swagger UI. SQLite is created automatically at `data/movies.db`; run from the same repository root when restarting. FakeRedis is an in-process cache and requires no Redis server; it starts empty after a restart. Generated databases, virtual environments, and Python caches are ignored by Git.
 
-## 按作业顺序演示
-
-1. `POST /upload`：上传 `fixtures/sample_movies.csv`，返回 20 行、4 列。
-2. `GET /movies`：设置 `limit=2`，返回 Movie A、Movie B，`total_rows=20`。
-3. `GET /movies/search`：默认 `columns=title`，设置 `min_rating=8.5, limit=2`，返回 id=4 的 Movie C 和 id=2 的 Movie B。
-4. 搜索时把 `columns` 设为两个条目 `title` 和 `rating`，返回上述电影及评分 9.0、8.5。URL 使用重复参数：`?columns=title&columns=rating&min_rating=8.5&limit=2`。
-5. 在终端按 Ctrl+C 停止，再用相同命令启动；不重新上传即可读取原来的 20 行。
-6. 再上传同一文件，仍为 20 行，覆盖旧集合。
-7. 上传 `.txt` 文件返回 400；随后 `/health` 仍返回正常状态。
-8. `POST /movies/process`：把 `process_config.json` 的内容复制进请求体。启用去重和 rating 的 IQR 异常值清理后，20 行变为 16 行。
-
-处理接口沿用 MP2 的嵌套配置 `validation` / `processing`。传 `{}` 使用 MP2 的默认设置，只去重和去除缺失行，本样例得到 18 行。处理不能删掉四个固定电影字段；若 `missing.axis="columns"` 导致字段被删除，返回 400 并保留原数据。
-
-## 测试
-
-激活虚拟环境后，从项目根目录执行：
+## Tests
 
 ```bash
-python -m pytest -q
+python -m pytest tests -v
 ```
 
-测试使用临时 SQLite 数据库，不会覆盖演示数据库。包括题目给出的完整响应、覆盖上传、独立 Python 进程读取持久化数据、SQL 事务回滚、NULL、错误文件、参数验证及 MP2 清洗流程。
+Tests use isolated temporary SQLite databases and a fresh cache per test. See `VERIFICATION.md` for the checks performed.
 
-## 文件说明
+## Sample upload and processing request
 
-- `main.py`：健康检查、上传、查询、搜索、处理接口。
-- `src/database.py`：连接及建表；电影字段允许 SQL NULL。
-- `src/storage.py`：使用 SQL 插入、覆盖、过滤、排序、计数；每次连接都关闭，覆盖写入在同一个事务内。
-- `src/models.py`：原 MP2 配置及 MP3 响应模型。
-- `data_pipeline/`：从 MP2 复制的 MP1 清洗模块。
-- `fixtures/`：题目样例数据。
-- `tests/`：API 和持久化测试。
+Start with the provided 20-row fixture:
 
-依赖文件使用与本次测试兼容的直接依赖范围，避免照搬原 MP2 中与本项目无关的完整环境锁定列表。
+```bash
+curl -X POST http://127.0.0.1:8000/upload \
+  -F 'file=@fixtures/sample_movies.csv;type=text/csv'
+curl 'http://127.0.0.1:8000/movies?limit=100'
+curl 'http://127.0.0.1:8000/movies?limit=100'
+curl 'http://127.0.0.1:8000/movies?limit=1'
+```
 
-## GitHub 仓库
+The first retrieval for each limit misses the cache; repeating limit 100 hits it. To process, use `POST /movies/process` with the following JSON (also saved in `process_config.json`):
 
-项目已发布到独立的私有仓库：
+```json
+{
+  "validation": {
+    "required_columns": ["title", "release_year", "rating", "genre"],
+    "numeric_columns": ["release_year", "rating"]
+  },
+  "processing": {
+    "remove_duplicates": true,
+    "missing": {"enabled": true, "axis": "rows"},
+    "outliers": {
+      "enabled": true,
+      "columns": ["rating"],
+      "method": "iqr",
+      "threshold": 1.5
+    }
+  }
+}
+```
+
+```bash
+curl -X POST http://127.0.0.1:8000/movies/process \
+  -H 'Content-Type: application/json' \
+  --data-binary @process_config.json
+```
+
+Expected processing response:
+
+```json
+{
+  "validation_rows_removed": 0,
+  "cleaning_report": {
+    "rows_before": 20,
+    "rows_after": 16,
+    "rows_removed": 4,
+    "columns_before": 4,
+    "columns_after": 4,
+    "columns_removed": 0
+  }
+}
+```
+
+The next `GET /movies?limit=100` misses and returns `total_rows: 16` with Movie A through Movie P and IDs 1 through 16, in order. Repeating it hits the cache. Restarting the server preserves those 16 SQLite rows; uploading the sample again replaces them with 20 rows and clears all cached limits. Passing `{}` to processing uses the existing Part 1 defaults and produces 18 rows because outlier removal is disabled by default.
+
+## Repository
 
 https://github.com/vincentyang518/mp3-movie-api
 
-默认分支为 `main`。数据库、虚拟环境和缓存由 `.gitignore` 排除。后续修改可从本项目根目录提交并推送：
-
-```bash
-git add .
-git commit -m "Describe your changes"
-git push origin main
-```
-
-私有仓库需要授予教师或助教访问权限后，他们才能查看代码。
+The repository is private; the instructor or TA needs access to view it.
